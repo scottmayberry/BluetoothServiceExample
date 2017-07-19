@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
@@ -38,36 +39,45 @@ public class BluetoothDataService extends Service {
         super.onCreate();
         Log.d("BT SERVICE", "SERVICE CREATED");
         stopThread = false;
-    }
+        if(bluetoothIn == null) {
+            bluetoothIn = new Handler() {
+                public void handleMessage(android.os.Message msg) {
+                    Log.d("DEBUG", "handleMessage");
+                    if (msg.what == handlerState) {                                     //if message is what we want
+                        String readMessage = (String) msg.obj;                                                                // msg.arg1 = bytes from connect thread
+                        recDataString.append(readMessage);//`enter code here`
+                        Log.d("RECORDED", recDataString.toString());
+                        // Do stuff here with your data, like adding it to the database
+                        sendMessageToActivity(readMessage);
+                    }
+                    recDataString.delete(0, recDataString.length());                    //clear all string data
+                }
+            };
+
+
+            btAdapter = BluetoothAdapter.getDefaultAdapter();       // get Bluetooth adapter
+            checkBTState();
+        }
+    }//on create
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         Log.d("BT SERVICE", "SERVICE STARTED");
-        bluetoothIn = new Handler() {
-
-            public void handleMessage(android.os.Message msg) {
-                Log.d("DEBUG", "handleMessage");
-                if (msg.what == handlerState) {                                     //if message is what we want
-                    String readMessage = (String) msg.obj;                                                                // msg.arg1 = bytes from connect thread
-                    recDataString.append(readMessage);//`enter code here`
-                    Log.d("RECORDED", recDataString.toString());
-                    // Do stuff here with your data, like adding it to the database
-                    sendMessageToActivity(readMessage);
-                }
-                recDataString.delete(0, recDataString.length());                    //clear all string data
+        Bundle extras = intent.getExtras();
+        if(extras != null) {
+            if(extras.containsKey("WRITE")) {
+                if(mConnectedThread != null)
+                    mConnectedThread.write(extras.getString("WRITE"));
             }
-        };
-
-
-        btAdapter = BluetoothAdapter.getDefaultAdapter();       // get Bluetooth adapter
-        checkBTState();
+        }
         return super.onStartCommand(intent, flags, startId);
-    }
+    }//on start command
+
     private void sendMessageToActivity(String msg) {
         Intent intent = new Intent("intentKey");
         intent.putExtra("key", msg);
         LocalBroadcastManager.getInstance(getApplicationContext()).sendBroadcast(intent);
-    }
+    }//send message to activity
 
     @Override
     public void onDestroy() {
@@ -81,13 +91,13 @@ public class BluetoothDataService extends Service {
             mConnectingThread.closeSocket();
         }
         Log.d("SERVICE", "onDestroy");
-    }
+    }//on destroy
 
     @Nullable
     @Override
     public IBinder onBind(Intent intent) {
         return null;
-    }
+    }//no binding to this service
 
     //Checks that the Android device Bluetooth is available and prompts to be turned on if off
     private void checkBTState() {
@@ -182,7 +192,8 @@ public class BluetoothDataService extends Service {
                 stopSelf();
             }
         }
-    }
+    }//connecting thread
+
     // New Class for Connected Thread
     private class ConnectedThread extends Thread {
         private final InputStream mmInStream;
@@ -206,7 +217,7 @@ public class BluetoothDataService extends Service {
 
             mmInStream = tmpIn;
             mmOutStream = tmpOut;
-        }
+        }//connected thread constructor
 
         public void run() {
             Log.d("DEBUG BT", "IN CONNECTED THREAD RUN");
@@ -228,7 +239,7 @@ public class BluetoothDataService extends Service {
                     break;
                 }
             }
-        }
+        }//run
 
         //write method
         public void write(String input) {
@@ -241,7 +252,7 @@ public class BluetoothDataService extends Service {
                 Log.d("BT SERVICE", "UNABLE TO READ/WRITE, STOPPING SERVICE");
                 stopSelf();
             }
-        }
+        }//write
 
         public void closeStreams() {
             try {
@@ -254,6 +265,6 @@ public class BluetoothDataService extends Service {
                 Log.d("BT SERVICE", "STREAM CLOSING FAILED, STOPPING SERVICE");
                 stopSelf();
             }
-        }
-    }
-}
+        }//close streams
+    }//connected thread
+}//bluedataservice
